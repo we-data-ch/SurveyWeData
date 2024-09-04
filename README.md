@@ -14,6 +14,14 @@ The process includes renaming columns for clarity and visualizing categorical va
 - R < 4.1
 - Packages: `tidyverse`, `janitor`, `here`, `pacman`
 
+But just use renv to install the required packages.
+
+```{r}
+# Install renv
+install.packages("renv")
+renv::restore()
+```
+
 ## Key Steps
 
 1. **Data Cleaning:**
