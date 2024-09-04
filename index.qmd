@@ -1,0 +1,234 @@
+---
+title: "Graduate Campus - We Data Survey 2024"
+author: "David Munoz Tord & Vestin"
+format: 
+  html: 
+    toc: true
+    code-fold: true
+execute:
+  echo: true
+  warning: false
+  message: false
+---
+
+```{r}
+#| label: setup
+#| include: false
+# Load necessary libraries
+pacman::p_load(
+    dplyr,
+    readr,
+    ggplot2,
+    plotly,
+    tidyr,
+    janitor,
+    stringr,
+    kableExtra, 
+    #skimr. 
+    here
+)
+
+
+#Set the working directory
+here <- here::here()
+
+# Load the data
+results_survey_raw  <- read_csv(here("data", "results_survey.csv"))
+
+#remove email col 
+
+# results_survey_raw2 <- results_survey_raw[-length(results_survey_raw)]
+# write_csv(results_survey_raw2, here("data", "results_survey.csv"))
+
+# Source the utils.R file
+source(here("scripts", "utils.R"))
+
+```
+
+
+
+## Data Cleaning
+```{r}
+#| label: clean
+
+# Remove columns with no variance AND Unnecessary columns
+results_survey <- results_survey_raw %>%
+  select_if(~ n_distinct(.) > 1) %>%
+  select(-c("Response ID", "Seed")) 
+
+
+# Apply the function to shorten the column names
+results_survey_clean <- 
+  results_survey %>%
+  clean_names() %>%
+  rename_with(shorten_names) %>%
+  mutate(across(everything(), ~ as.factor(.))) # Convert character columns  to factors
+
+# Preview the renamed columns
+#names(results_survey_clean)
+#
+# Preview the data after filtering
+#skim(results_survey_clean)
+
+
+```
+
+
+
+```{r}
+#| label: plot_num_var
+#| include: false
+# Plot histograms for numeric variables
+# results_survey_clean %>%
+#   select(where(is.numeric)) %>%
+#   pivot_longer(everything()) %>%
+#   ggplot(aes(x = value)) +
+#   geom_histogram(bins = 30, fill = "skyblue", color = "black") +
+#   facet_wrap(~ name, scales = "free_x") +
+#   theme_minimal() +
+#   labs(title = "Histograms of Numeric Variables", x = "Value", y = "Count")
+
+```
+
+
+### Dichotomic Variables
+
+```{r}
+#| label: plot_dich_var
+
+# Define the custom theme with spacing adjustments
+custom_theme <- theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    panel.spacing = unit(2, "cm")  # Adjust the spacing between facets
+  )
+
+
+plot_dich <- results_survey_clean %>%
+  select(where(~ n_distinct(.) == 2)) %>%
+  pivot_longer(everything()) %>%
+  group_by(name, value) %>%
+  tally() %>%
+  group_by(name) %>%
+  mutate(percentage = n / sum(n) * 100) %>%
+   ggplot(aes(x = value, y = percentage)) +
+  geom_bar(stat="identity", fill = "lightgreen", color = "black") +
+  facet_wrap(~ name, scales = "free_x") +
+  scale_y_continuous(labels = scales::percent_format(scale = 1)) +
+  labs(title = "Bar Plots of Dichotomic Variables %", x = "Category", y = "Count") +
+  custom_theme
+
+
+ggplotly(plot_dich)
+
+```
+
+
+### Categorical Variables
+
+
+```{r}
+#| label: plot_cat_var_2_8
+
+
+
+# Define the custom theme with spacing adjustments
+custom_theme <- theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    panel.spacing = unit(5, "cm")  # Adjust the spacing between facets
+  )
+
+# Create plot for categorical variables with percentages
+plot_cat <- results_survey_clean %>%
+  select(where(~ n_distinct(.) > 2 & n_distinct(.) < 8 )) %>%
+  pivot_longer(everything()) %>%
+  group_by(name, value) %>%
+  tally() %>%
+  group_by(name) %>%
+  mutate(percentage = n / sum(n) * 100) %>%
+  ggplot(aes(x = value, y = percentage)) +
+  geom_bar(stat = "identity", fill = "skyblue", color = "black") +
+  facet_wrap(~ name, scales = "free_x") +
+  scale_y_continuous(labels = scales::percent_format(scale = 1)) +
+  labs(title = "Bar Plots of Categorical Variables %", x = "Category", y = "Percentage") +
+  custom_theme
+
+# Convert ggplot to plotly
+ggplotly(plot_cat)
+
+```
+
+
+
+
+```{r}
+#| label: plot_cat_var_8
+#| include: false
+#   # Calculate the number of NAs
+#   num_na <- sum(is.na(results_survey_clean %>%
+#     select(where(~ n_distinct(.) > 8 & n_distinct(.) < 18))))
+#   
+# # Create the plot
+# p <- results_survey_clean %>%
+#     select(where(~ n_distinct(.) > 8 & n_distinct(.) < 18)) %>%
+#     pivot_longer(everything(), names_to = "variable", values_to = "value") %>%
+#     filter(!is.na(value)) %>%  # Exclude NAs from the plot
+#     ggplot(aes(x = value)) +
+#     geom_bar(fill = "tomato", color = "black") +
+#     theme_minimal() +
+#     labs(
+#       title = paste("Bar Plot of", var),
+#       x = var,
+#       y = "Count",
+#       caption = paste("Note: Number of missing values (NA):", num_na)
+#     ) +
+#     theme(axis.text.x = element_text(angle = 45, hjust = 1))
+#   
+# ggplotly(p)
+
+
+#TODO: Useless plot for now but look at it if you want
+
+
+```
+
+
+### Semantic Analysis
+
+
+```{r}
+#| label: semantic_analysis 
+## Identify columns with more than 18 categories
+results_survey_clean %>%
+  select(where(~ n_distinct(.) >  18))  %>%
+  kable(format = "html", escape = FALSE) %>%
+  kable_styling(
+    bootstrap_options = c("striped", "hover", "condensed", "responsive"),
+    full_width = FALSE,
+    position = "center"
+  ) %>%
+  scroll_box(width = "100%", height = "400px")
+
+
+#TODO: lets go Vestin !
+
+```
+
+
+
+### Glossary
+
+
+```{r}
+# Create and style the table with kableExtra
+column_mapping %>%
+  kable(format = "html", escape = FALSE, col.names = c("Original Name", "Shortened Name")) %>%
+  kable_styling(
+    bootstrap_options = c("striped", "hover", "condensed", "responsive"),
+    full_width = FALSE,
+    position = "center"
+  ) %>%
+  scroll_box(width = "100%", height = "400px")
+```
+
