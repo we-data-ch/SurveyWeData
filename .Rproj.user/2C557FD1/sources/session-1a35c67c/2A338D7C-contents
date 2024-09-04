@@ -1,0 +1,197 @@
+---
+title: "Graduate Campus - We Data Survey 2024"
+author: "David Munoz Tord & Vestin"
+format: 
+  html: 
+    toc: true
+    code-fold: true
+execute:
+  echo: true
+  warning: false
+  message: false
+---
+
+```{r}
+#| label: setup
+#| include: false
+# Load necessary libraries
+pacman::p_load(
+    tidyverse,
+    janitor,
+    #skimr,
+    kableExtra,
+    here
+)
+
+
+#Set the working directory
+here::set_here()
+here <- here::here()
+
+# Load the data
+results_survey_raw  <- read_csv(here("data", "results_survey.csv"))
+
+
+#remove email col 
+
+results_survey_raw2 <- results_survey_raw[-length(results_survey_raw)]
+write_csv(results_survey_raw2, here("data", "results_survey.csv"))
+```
+
+```{r}
+# Source the utils.R file
+source(here("scripts", "utils.R"))
+
+```
+
+
+
+
+```{r}
+#| label: clean
+
+# Remove columns with no variance AND Unnecessary columns
+results_survey <- results_survey_raw %>%
+  select_if(~ n_distinct(.) > 1) %>%
+  select(-c("Response ID", "Seed")) 
+
+
+```
+
+```{r}
+
+# Apply the function to shorten the column names
+results_survey_clean <- 
+  results_survey %>%
+  clean_names() %>%
+  rename_with(shorten_names) %>%
+  mutate(across(everything(), ~ as.factor(.))) # Convert character columns  to factors
+
+# Preview the renamed columns
+#names(results_survey_clean)
+
+
+```
+
+```{r}
+#| label: glimpse
+
+# Preview the data after filtering
+#skim(results_survey_clean)
+
+
+```
+
+```{r}
+#| label: plot_num_var
+
+# Plot histograms for numeric variables
+# results_survey_clean %>%
+#   select(where(is.numeric)) %>%
+#   pivot_longer(everything()) %>%
+#   ggplot(aes(x = value)) +
+#   geom_histogram(bins = 30, fill = "skyblue", color = "black") +
+#   facet_wrap(~ name, scales = "free_x") +
+#   theme_minimal() +
+#   labs(title = "Histograms of Numeric Variables", x = "Value", y = "Count")
+
+```
+
+
+### Dichotomic Variables
+
+```{r}
+#| label: plot_dich_var
+
+
+results_survey_clean %>%
+  select(where(~ n_distinct(.) == 2)) %>%
+  pivot_longer(everything()) %>%
+  ggplot(aes(x = value)) +
+  geom_bar(fill = "lightgreen", color = "black") +
+  facet_wrap(~ name, scales = "free_x") +
+  theme_minimal() +
+  labs(title = "Bar Plots of Dichotomic Variables", x = "Category", y = "Count") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+
+```
+
+
+### Categorical Variables
+
+
+```{r}
+#| label: plot_cat_var_2_8
+
+
+results_survey_clean %>%
+  select(where(~ n_distinct(.) > 2 & n_distinct(.) < 8 )) %>%
+  pivot_longer(everything()) %>%
+  ggplot(aes(x = value)) +
+  geom_bar(fill = "skyblue", color = "black") +
+  facet_wrap(~ name, scales = "free_x") +
+  theme_minimal() +
+  labs(title = "Bar Plots of Categorical Variables", x = "Category", y = "Count") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+
+```
+
+
+
+
+```{r}
+#| label: plot_cat_var_8
+
+
+
+# Identify columns with more than 8 categories and less than 18 categories
+vars_to_plot <- results_survey_clean %>%
+  select(where(~ n_distinct(.) > 8 & n_distinct(.) < 18))     %>% names()
+
+# Loop through each variable and create a plot
+for (var in vars_to_plot) {
+  # Calculate the number of NAs
+  num_na <- sum(is.na(results_survey_clean[[var]]))
+  
+  # Create the plot
+  p <- results_survey_clean %>%
+    select({{ var }}) %>%
+    pivot_longer(everything(), names_to = "variable", values_to = "value") %>%
+    filter(!is.na(value)) %>%  # Exclude NAs from the plot
+    ggplot(aes(x = value)) +
+    geom_bar(fill = "skyblue", color = "black") +
+    theme_minimal() +
+    labs(
+      title = paste("Bar Plot of", var),
+      x = var,
+      y = "Count",
+      caption = paste("Note: Number of missing values (NA):", num_na)
+    ) +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  
+  print(p)
+}
+
+
+```
+
+
+### Semantic Analysis
+
+```{r}
+#| label: semantic_analysis 
+
+
+## Identify columns with more than 18 categories
+vars_to_analyze <- results_survey_clean %>%
+  select(where(~ n_distinct(.) >  18))     %>% names()
+
+
+#TODO: lets go Vestin !
+
+```
+

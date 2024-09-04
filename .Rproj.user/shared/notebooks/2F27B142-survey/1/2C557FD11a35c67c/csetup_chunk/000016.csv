@@ -1,0 +1,5 @@
+"0","write_csv(results_survey_raw2, here(""data"", ""results_survey.csv""))
+"
+"2","Error in here(""data"", ""results_survey.csv"") : 
+  could not find function ""here""
+"

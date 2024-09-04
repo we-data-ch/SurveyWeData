@@ -1,0 +1,24 @@
+"0","#| label: glimpse"
+"0",""
+"0","# Preview the data after filtering"
+"0","skim(results_survey_clean)"
+"1","── Data Summary ────────────────────────
+"
+"1","                           Values              
+"
+"1","Name                       results_survey_clean
+"
+"1","Number of rows             91                  
+"
+"1","Number of columns          29                  
+"
+"1","_______________________                        
+"
+"1","Column type frequency:                         
+"
+"1","  factor                   29                  
+"
+"1","________________________                       
+"
+"1","Group variables            None                
+"
