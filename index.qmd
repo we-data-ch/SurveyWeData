@@ -6,10 +6,21 @@ format:
     toc: true
     code-fold: true
 execute:
-  echo: true
+  echo: false
   warning: false
   message: false
 ---
+
+## Présentation
+
+Le présent document résument les résultats du sondage concernant les besoins en soutien statistique des doctorantes et doctorants de l'Université de Genève. Les réultats initiaux montrent qu'il y a un réel beoins de soutien pour ces étudiants et qu'il doit se faire dans différentes dimensions:
+
+```         
+- Mentorat
+- Communauté
+- Ressources
+- Rencontres ponctuelles
+```
 
 ```{r}
 #| label: setup
@@ -24,10 +35,13 @@ pacman::p_load(
     janitor,
     stringr,
     kableExtra, 
+    forcats,
     #skimr. 
     here
 )
 
+# ggplot2 theme
+theme_set(theme_minimal())
 
 #Set the working directory
 here <- here::here()
@@ -45,11 +59,9 @@ source(here("scripts", "utils.R"))
 
 ```
 
-
-
-## Data Cleaning
 ```{r}
 #| label: clean
+#| include: false
 
 # Remove columns with no variance AND Unnecessary columns
 results_survey <- results_survey_raw %>%
@@ -70,10 +82,33 @@ results_survey_clean <-
 # Preview the data after filtering
 #skim(results_survey_clean)
 
+question_id <- 
+  results_survey %>% 
+  names() %>% 
+  str_remove(" \\[.*\\]") %>% 
+  unique() %>% 
+  tibble(
+    id = 1:length(.),
+    name = .
+  )
 
+result_categorical <- 
+  results_survey %>%
+  mutate_all(as.character) %>% 
+  # select(where(~ n_distinct(.) == 2 | n_distinct(.) < 8)) %>%
+  pivot_longer(everything()) %>% 
+  group_by(name, value) %>%
+  tally() %>% 
+  separate(name,
+           into = c("name", "option"),
+           sep = " \\[") %>% 
+  mutate(option = str_remove(option, "\\]")) %>% 
+  left_join(question_id) %>% 
+  relocate(id) %>% 
+  mutate(percentage = n / sum(n) * 100,
+         percentage = round(percentage, 2),
+         .by = c(name, option))
 ```
-
-
 
 ```{r}
 #| label: plot_num_var
@@ -90,19 +125,149 @@ results_survey_clean <-
 
 ```
 
+## Profils des doctorant(e)s
 
-### Dichotomic Variables
+### `r question_id$name[1]`
+
+```{r}
+#| label: pct_french
+pct_french <- 
+  result_categorical %>% 
+  filter(id == 1, value == "French") %>% 
+  pull(percentage)
+```
+
+La plupart des doctorant(e)s parlent au moins l'anglais (`r 100 - pct_french`%), mais il y a tout de même un petit pourcentage qui ne parle que le français (`r pct_french`%)
+
+```{r}
+question <- 1
+
+q1_plot <- 
+  result_categorical %>% 
+  filter(id == question) %>% 
+  mutate(value = fct_reorder(value, -percentage)) %>% 
+  ggplot(aes(x = value, y = percentage)) +
+  geom_bar(stat="identity", fill = "lightgreen", color = "black") +
+  scale_y_continuous(labels = scales::percent_format(scale = 1)) +
+  labs(title = question_id$name[question],
+       x = "Category", y = "Percentage")
+
+ggplotly(q1_plot)
+```
+
+### `r question_id$name[2]`
+
+```{r}
+question <- 2
+
+q2_ranking <- 
+  result_categorical %>% 
+  filter(id == question, value == "Yes") %>% 
+  select(-value)
+  
+q2_top_3 <- 
+  q2_ranking %>% 
+  arrange(percentage) %>% 
+  slice_max(percentage, n = 3)
+
+q2_top_3_option <-
+  q2_top_3 %>% 
+  pull(option) %>% 
+  str_flatten(collapse = ", ",
+              last = " et ")
+
+q2_top_3_percentage <- 
+  q2_top_3 %>% 
+  pull(percentage) %>% 
+  str_c("%") %>% 
+  str_flatten(collapse = ", ",
+              last = " et ")
+```
+
+En ce qui concerne les sujets qui intéressent notre population, nous avons dans le top 3 dans l'ordre décroissant `r q2_top_3_option` avec respectivement les proportions suivantes `r q2_top_3_percentage`. Ces résultats ne sont pas suprenant puisque ce sont généralement des sujets populaires, surtout auprès des débutants.
+
+```{r}
+#| label: q2_plot
+
+q2_plot <- 
+  q2_ranking %>% 
+  mutate(option = str_remove(option, " \\(.*\\)"),
+         option = str_wrap(option, 45),
+         option = fct_reorder(option, percentage)) %>% 
+  ggplot(aes(option, percentage)) +
+  geom_col(fill = "lightgreen", color = "black") +
+  scale_y_continuous(labels = scales::percent_format(scale = 1)) +
+  coord_flip() +
+  labs(title = str_wrap(question_id$name[question], 50))
+
+ggplotly(q2_plot)
+```
+
+### `r question_id$name[3]`
+
+Sans surprise R et Python sont les languages les plus populaires avec un intérêt marqué pour R.
+
+```{r}
+question <- 3
+
+q3_plot <- 
+  result_categorical %>% 
+  mutate(value = if_else(option == "Other" & value != "No", "Yes", value)) %>% 
+  filter(id == question, value == "Yes") %>% 
+  summarise(percentage = sum(percentage),
+            .by = option) %>% 
+  mutate(option = fct_reorder(option, -percentage)) %>% 
+  ggplot(aes(option, percentage)) +
+  geom_col(fill = "lightgreen", color = "black") +
+  labs(title = question_id$name[question],
+       x = "Programming language")
+
+ggplotly(q3_plot)
+```
+
+### `r str_trunc(question_id$name[4], 105)`?
+
+Il est important de noter que la proportion de personnes sans expérience pour le language Python est élevée, mais pas tous les répondants souhaitent utiliser Python dans leur recherche. Du côté de R, cette proportion est élevée, mais il y aussi pas mal de débutants.
+
+```{r}
+question <- 4:5
+
+q4_5_plot <- 
+  result_categorical %>% 
+  filter(id %in% question) %>% 
+  mutate(option = if_else(str_detect(name, "Python"), "Python", "R"),
+         value = factor(value)) %>% 
+  complete(option, value) %>% 
+  mutate(across(n:percentage, ~ if_else(is.na(.x), 0, .x))) %>% 
+  fill(id, name) %>% 
+  ggplot(aes(value, percentage, fill = option)) +
+  geom_col(color = "black") +
+  facet_wrap(~option) +
+  theme(legend.position = "null") +
+  labs(title = str_trunc(question_id$name[4], 105),
+       x = "Proficiency level")
+
+ggplotly(q4_5_plot)
+```
+
+## Besoins
+
+### Communauté et mentorat
+
+Nous pouvons souligner les résultats principaux suivants:
+
+-   La quasi-totalité des répondants affirme être intéressé à rejoindre une communauté d'entre-aide (96.70%)
+-   La majorité est prêt à partager des ressources pour l'entre-aide (62.64%)
+-   Il y a plus de personne cherchant un mentor (70.33%) que de personnes prêtes à faire mentor (23.08%)
 
 ```{r}
 #| label: plot_dich_var
 
 # Define the custom theme with spacing adjustments
-custom_theme <- theme_minimal() +
-  theme(
+custom_theme <- theme(
     axis.text.x = element_text(angle = 45, hjust = 1),
     panel.spacing = unit(2, "cm")  # Adjust the spacing between facets
   )
-
 
 plot_dich <- results_survey_clean %>%
   select(where(~ n_distinct(.) == 2)) %>%
@@ -110,8 +275,12 @@ plot_dich <- results_survey_clean %>%
   group_by(name, value) %>%
   tally() %>%
   group_by(name) %>%
-  mutate(percentage = n / sum(n) * 100) %>%
-   ggplot(aes(x = value, y = percentage)) +
+  mutate(percentage = n / sum(n) * 100,
+         percentage = round(percentage, 2)) %>%
+  filter(!str_detect(name, "int|lang")) %>% 
+  mutate(name = factor(name, 
+                       level = c("join_platform", "share_resources", "mentee_info", "mentor_info"))) %>% 
+  ggplot(aes(x = value, y = percentage)) +
   geom_bar(stat="identity", fill = "lightgreen", color = "black") +
   facet_wrap(~ name, scales = "free_x") +
   scale_y_continuous(labels = scales::percent_format(scale = 1)) +
@@ -120,21 +289,22 @@ plot_dich <- results_survey_clean %>%
 
 
 ggplotly(plot_dich)
-
 ```
 
+### Data meetup
 
-### Categorical Variables
+Concernant les potentielles rencontres entre doctorant(e)s, il y a clairement une demande pour ce genre de projet. Plus précisément, nous pouvons souligner les informations suivantes:
 
+```         
+- La vaste majorité des répondant est intéressé par ce concept (97.80%)
+- La majorité souhaiterait avoir ces rencontre une fois par mois (62.64%)
+```
 
 ```{r}
 #| label: plot_cat_var_2_8
 
-
-
 # Define the custom theme with spacing adjustments
-custom_theme <- theme_minimal() +
-  theme(
+custom_theme <- theme(
     axis.text.x = element_text(angle = 45, hjust = 1),
     panel.spacing = unit(5, "cm")  # Adjust the spacing between facets
   )
@@ -146,7 +316,9 @@ plot_cat <- results_survey_clean %>%
   group_by(name, value) %>%
   tally() %>%
   group_by(name) %>%
-  mutate(percentage = n / sum(n) * 100) %>%
+  mutate(percentage = n / sum(n) * 100,
+         percentage = round(percentage, 2)) %>%
+  filter(str_detect(name, "meetup")) %>% 
   ggplot(aes(x = value, y = percentage)) +
   geom_bar(stat = "identity", fill = "skyblue", color = "black") +
   facet_wrap(~ name, scales = "free_x") +
@@ -158,9 +330,6 @@ plot_cat <- results_survey_clean %>%
 ggplotly(plot_cat)
 
 ```
-
-
-
 
 ```{r}
 #| label: plot_cat_var_8
@@ -193,9 +362,83 @@ ggplotly(plot_cat)
 
 ```
 
+### Analyse thématique
 
-### Semantic Analysis
+L'analyse des commentaires à permi de dégager plusieurs informations:
 
+-   Il y a une grande demande pour des leçons de base dans R et Python.
+
+-   Même si beaucoup n'ont pas d'expériences, il y a tout de même quelques personnes qui savent exactement ce qu'elles cherchent (ex. méthodes). Elles sont généralement dans des disciplines très quantitatives (psychologie ou science).
+
+-   Les mentores sont assez demandés mais généralement les personnes moins débutantes cherchent des mentors avec des compétences spécifiques et préférablement du même domaine qu'elles.
+
+-   L'analyse des commentaires donne des pistes sur les raisons d'un plus grand intérêt pour les communauté plutôt que les mentors. Nous pouvons citer les raisons suivantes:
+
+    -   Flexibilité dans le temps
+    -   Autonomie
+    -   Faible investissement
+
+-   La plupart sont avant tout à la recherche d'une communauté. Il transparaît que certaine personnes souhaitent simplement avoir la capacité de poser leur question et de pouvoir participer librement à des activités. Quelques répondants out suivi ou suivent encore des cours (en ligne en présentiel), mais ça ne les empêche pas de s'intéresser à la potentielle communauté ou à la recherche d'un mentor.
+
+Lorsque nous regardons les commentaires fournis par les répondant, nous pouvons remarqué 3 thématiques récurant: la recherche de référence, le manque de confiance et la recherche d'un environnement adéquat.
+
+**Recherche de référence**
+
+En accord avec la proportion de personnes intéressées par des rencontres mensuelles, il semble que les personnes cherchant des mentors veulent principalement quelqu'un qui leur montre la bonne direction et les rassure dans leur processus d'apprentissage. Par exemple les commentaires suivant utilisent des terme comme **approprié**, **sur la bonne voie** ou **bon(ne) \[analyse\|code\]**:
+
+> I am a phd in the political science department and my research is in the field of political economy. I started taking quantitative methods classes at the beginning of my PhD but would love some mentorin, i.e., to disucss things like what models would be the most **appropriate** etc. - basically someone i could ask some questions to, to get some feedback about whether or not I am **on the right track**
+
+> It could be interesting to discuss about data I collected to be sure that i'm doing the good analysis; also to check if what i'm doing seems to be good (in a script).
+
+Nous voyons aussi que pour certain, avoir un mentore c'est aussi trouvé un moyen de se motiver et de se discipliner dans l'apprentissage.
+
+> A mentorship could be a motivation to discipline oneself into learning coding/data science.
+
+Ici la réponse au problème peut être aussi simple que d'être dans la même pièce que quelqu'un à qui nous pouvons poser des questions d'où l'importance des rencontres:
+
+> It would be great to work on my analysis in a space where there is someone who can answer my questions et guide me
+
+**Manque de confiance**
+
+Le manque de confiance se fait ressentir dans les affirmations concernant la capacité d'endossé le rôle de mentor. Il n'est pas étonnant de voir ce manque de confiance en raison du fait que la majorité annonce avoir peu d’expertise avec R et Python. Ce qui est surprenant, c'est la quantité de personnes souhaitant être mentor mais n'ayant pas suffisement confiance en leur capacité pour le faire:
+
+> knowledege on basic-intermediate statistics so I can later on try to tackle other more advanced and specific topics/techniques I'd love to become a mentor eventually, but first I must feel confident that I can actually mentor someone into some particular skills.
+
+> Not proficirnt enought to 'mentor' somebody, but happy to share
+
+> I don't feel I have enough knowledge and competencies to mentor another person. But would love to do so if I improve in these areas
+
+> I'm open to help, but right now I don't have the skills yet. However, if I can help I would like to, I think we learn better with other people
+
+> I am open but I don't have any experience on this :(
+
+> I am not sure if I have enough knowledg to mentor someone else at te moment, but in the future once I feel confortable enough in the languages I would be happy to.
+
+> I feel I need to develop my skills before I can mentor someone.
+
+> I would love to, however I think I simply don't have the capacity to do it (not enough knowledge). However, I tend to write down and source everything I find/use (great to create manuals and checklists that I share with great enthusiasm).
+
+> Not yet, but why not when I would have gained expertise, just to give back the help I might have received
+
+Ce qui indique qu'il y a également l'envie d'aider/de contribuer. Une communauté serait alors une nécessité pour permettre au personnes de pouvoir aider sans avoir forcément à porter le poids du rôle de mentor. Il faut tout de même souligner qu'il existe des répondant confiants et qui sont prêts à prendre la responsabilité de mentor. Ces derniers sont peu nombreux par rapport à la demande de mentor et ont aussi des restrictions (domaine spécifique, temps, etc.).
+
+**Recherche d'environnement**
+
+Plusieurs participant(e)s ont suivi des cours pour palier à leur manque de compétences. Malgré ça l'idée d'avoir un(e) mentor et une communauté reste intéressante pour tout le monde. Ce qui ressort des commentaire est d'une part le besoind 'interagir avec d'autres personnes:
+
+> I have only taken some introductory courses on R and Python (Google Colab). Unfortunately, I find these are skills difficult to develop and much more difficult to keep without **proper constant practice. I lack a context for practice**, so eveytime I try to train in these skills, I feel like climbing down to ground level.
+
+> For R I'm taking an online course in Codecademy platform and I started using RStudio to write very basic codes in my own data but **I would like to practice more and interact with people who are also using it**. For Python, I started an introductory course but I've never used it.
+
+> **I would like to interact with other users** and discuss different ways to write codes as well as getting help when I can't figure out why my code is not correct
+
+Comme nous l'avons vu précédemment, il y a aussi une envie de contribuer auprès d'une communauté. Cela se voit également parmi les personnes souhaitant partager des ressources ou mentorer:
+
+> I love trying by myself. **I'm interested in sharing our experience with a community of practice**
+
+> Yes, I am \[interested in mentorig\]. **It's a way to pay it forward**. Also, when you mentor/teach others you also improve your own expertise and knowledge
+
+Ainsi par le biais de nos trois thématiques - la recherche de références, le manque de confiance et la recherhce d'un environnement - nous voyons que le besoin d'une communauté est une thématique sous-jacente. La communauté pourrais répondre à plusieurs problème en permettant aux doctorant(e)s d'être entourés et de pouvoir s'entre-aider. Toutefois, cela ne répond pas à toutes les besoins, il y a une partie significative de personnes qui ont besoin d'un suivit (mentorat) et nous n'avons pas suffisement d'offre de mentor pour répondre à cette demande.
 
 ```{r}
 #| label: semantic_analysis 
@@ -215,10 +458,28 @@ results_survey_clean %>%
 
 ```
 
+## Conclusion et action
 
+Pas le biais de cette analyse nous avons identifier x problèmes que WeData pourrait partiellement régler. Toutefois pour répondre à tous les besoins, WeData ne dispose pas en l'état actuel de moyen suffisant.
 
-### Glossary
+1.  **Ressources:**
+    -   **Besoin:** Ressources (gratuites ou payantes) pour apprendre les bases méthodologique ou en programmation ainsi que des ressources spécfiqiues poues les personnes plus avancées.
+    -   **Majoritairement solvable:** WeData dispose de ressources personnelles et d'une liste de ressources en ligne gratuites et payantes. De plus, bon nombre de participants indiquent vouloir partager leur propres ressources. Nous pouvons organiser une plateforme pour collecter et organiser ces ressources.
+    -   **À améliorer:** Voir s'il serait possible de demander à des enseignants de l'université de partager leur ressources.
+2.  **Communauté:**
+    -   **Besoin:** D'être en contact avec d'autres personnes se souciant des méthodes statistiques et de la programmation pour pouvoir s'entre-aider.
+    -   **Majoritairement solvable:** WeData peut fournir une plateforme en ligne pour permettre à chacun(e) de pouvoir échanger sur la thématique. Nous pensons utiliser discord pour permettre une organisation simplifiée.
+    -   **À améliorer:** Cette plateforme (discord) est externe à l'université et est non-officielle. De plus, c'est également ce lien que nous partageons sur notre chaîne YouTube. Donc des personnes externes peuvent être présentes.
+3.  **Mentorat:**
+    -   **Besoin:** Les 7 participant(e)s sur 10 ont indiqué être intéressé(e)s par avoir un mentor.
+    -   **Actuellement insolvable:** Il y a 3 fois plus de personnes intéressées par avoir un mentor que de personnes indiquant vouloir mentorer. De plus, les deux groupes ont aussi des restrictions en ce qui concerne la matière à traiter et le temps à disposition. WeData ne dispose en l'état d'aucun membre pouvant exercer se rôle bénévolement. Il est donc impossible de répondre à ce besoin sans moyen supplémentaire.
+    -   **À améliorer:** Cette situation montre qu'il y a peut-être quelque chose à faire au niveau des départements car c'est normalement le rôle des superviseurs ou de l'équipe de recherche de guider les doctorant(e)s. Cependant, en fonction du besoin de suivi de la personne à charge, c'est peut-être une bonne stratégie pour les département d'externaliser ce service.
+4.  **Rencontre:**
+    -   **Besoin:** Les doctorant(e)s sont intéressé(e)s à se rencontrer régulièrement (1 fois) par mois pour dans le cadre de data meetup.
+    -   **Partiellement solvable:** WeData organise déjà les R-Lunches (rencontre autour de R tous les premiers mardi du mois). Cependant, ces rencontre sont sur des sujets spécifiques qui changent assez souvent. L'association pourrait organiser une fois par an ou semestre une rencontre. Mais tout ça ne sera pas suffisant pour répondre à la demande.
+    -   **À améliorer:** En l'état actuel, l'association ne peut rien faire de plus que ses propres activités. Il pourrait y avoir des solutions assez simple puisque pour certaines personnes le simple fait de pouvoir travailler dans une salle où d'autres travaillent avec la possibilité de poser des questions est déjà suffisant.
 
+## Glossaire
 
 ```{r}
 # Create and style the table with kableExtra
@@ -231,4 +492,3 @@ column_mapping %>%
   ) %>%
   scroll_box(width = "100%", height = "400px")
 ```
-
