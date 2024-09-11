@@ -11,17 +11,6 @@ execute:
   message: false
 ---
 
-## Présentation
-
-Le présent document résume les résultats du sondage concernant les besoins en soutien statistique des doctorantes et doctorants de l'Université de Genève. Les résultats initiaux montrent qu'il y a un réel besoins de soutien pour ces étudiants et qu'il doit se faire dans différentes dimensions:
-
-```         
-- Mentorat
-- Communauté
-- Ressources
-- Rencontres ponctuelles
-```
-
 ```{r}
 #| label: setup
 #| include: false
@@ -47,7 +36,9 @@ theme_set(theme_minimal())
 here <- here::here()
 
 # Load the data
-results_survey_raw  <- read_csv(here("data", "results_survey.csv"))
+results_survey_raw  <- 
+  read_csv(here("data", "results_survey.csv")) %>% 
+  filter(!`Response ID` %in% c(74, 77))
 
 #remove email col 
 
@@ -58,6 +49,18 @@ results_survey_raw  <- read_csv(here("data", "results_survey.csv"))
 source(here("scripts", "utils.R"))
 
 ```
+
+## Présentation
+
+Le présent document résume les résultats du sondage concernant les besoins en soutien statistique des doctorantes et doctorants de l'Université de Genève. En filtrant les réponses incomplète nous avons `r nrow(results_survey_raw)` répondants. Les résultats initiaux montrent qu'il y a un réel besoins de soutien pour ces étudiants et qu'il doit se faire dans différentes dimensions:
+
+```         
+- Mentorat
+- Communauté
+- Ressources
+- Rencontres ponctuelles
+```
+
 
 ```{r}
 #| label: clean
@@ -256,9 +259,9 @@ ggplotly(q4_5_plot)
 
 Nous pouvons souligner les résultats principaux suivants:
 
--   La quasi-totalité des répondants affirme être intéressé à rejoindre une communauté d'entre-aide (96.70%)
--   La majorité est prêt à partager des ressources pour l'entre-aide (62.64%)
--   Il y a bien plus de personne cherchant un mentor (70.33%) que de personnes prêtes à faire mentor (23.08%)
+-   La quasi-totalité des répondants affirme être intéressé à rejoindre une communauté d'entre-aide (96.63%)
+-   La majorité est prêt à partager des ressources pour l'entre-aide (61.80%)
+-   Il y a bien plus de personne cherchant un mentor (70.79%) que de personnes prêtes à faire mentor (21.35%)
 
 ```{r}
 #| label: plot_dich_var
